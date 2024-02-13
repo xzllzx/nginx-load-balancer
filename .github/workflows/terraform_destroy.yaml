@@ -1,0 +1,51 @@
+---
+name: "Manually destroy Terraform Stack"
+run-name: ${{ github.actor }} is testing out an Nginx deployment on AWS
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  WORKING_DIRECTORY: terraform
+  S3_BUCKET_RESOURCE: aws_s3_bucket.lb_logs
+
+jobs:
+  terraform-destroy:
+    name: Destroy Terraform stack
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-duration-seconds: 1200
+          retry-max-attempts: 5
+          
+      - name: Terraform setup
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.3"
+
+      - name: terraform init
+        id: init
+        run: terraform init
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+
+      - name: terraform state rm S3
+        id: remove
+        run: terraform state rm ${{ env.S3_BUCKET_RESOURCE }}
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        continue-on-error: true
+
+      - name: terraform destroy
+        id: destroy
+        run: terraform destroy -auto-approve -input=false
+        working-directory: ${{ env.WORKING_DIRECTORY }}
